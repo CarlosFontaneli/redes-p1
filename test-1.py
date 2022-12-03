@@ -2,8 +2,7 @@
 import asyncio
 from tcp import Servidor
 import re
-# chave = conexao, valor = apelido
-conexoes = {}
+Nicks = {}
 
 
 def validar_nome(nome):
@@ -11,7 +10,7 @@ def validar_nome(nome):
 
 
 def sair(conexao):
-    # print(conexao, 'conexão fechada')
+    print(conexao, 'conexão fechada')
     conexao.fechar()
 
 
@@ -33,8 +32,8 @@ def dados_recebidos(conexao, dados):
         elif comando == b'PRIVMSG':
             dest_msg = dado.split(b' :', 1)
 
-            # privatemsg(remetente, destinatario, conteudo)
-            privatemsg(conexoes[conexao], dest_msg[0], dest_msg[1])
+            #privatemsg(conexao, destinatario, conteudo)
+            privatemsg(conexao, dest_msg[0], dest_msg[1])
 
     print(conexao, dados)
 
@@ -42,7 +41,6 @@ def dados_recebidos(conexao, dados):
 def conexao_aceita(conexao):
     print(conexao, 'nova conexão')
     conexao.registrar_recebedor(dados_recebidos)
-    conexoes[conexao] = b'*'
     conexao.dados_residuais = b''
 
 # CASO 1
@@ -76,69 +74,72 @@ def data_treatment(conexao, dados):
 # CASO 3 E 4
 
 
+def encontra_usuario(conexao):
+    # confirmar se existe uma conexao ja estabelecida
+    for chave, valor in Nicks.items():
+        if conexao == valor:
+            return chave
+
+    return b'*'
+
+
 def itsNick(conexao, dados):
-    # extraindo o apelido após o comando
-    novo_apelido = dados.split(b' ', 1)[1]
+    apelido = dados.split(b' ', 1)[1]  # extraindo o apelido após o comando
     # removendo os caracteres de quebra de linha
-    novo_apelido = novo_apelido.split(b'\r\n')[0]
-    apelido_antigo = conexoes[conexao]
+    apelido = apelido.split(b'\r\n')[0]
+    apelido_antigo = encontra_usuario(conexao)
 
     # validando apelido
-    if validar_nome(novo_apelido):
-        # print(novo_apelido)
-        # se o apelido ja tiver nos conexoes e nao tem o mesmo valor de conexao
-        for _, apelido in conexoes.items():
-            if novo_apelido.lower() == apelido.lower():
-                # print(b'USADO :server 433 ' + apelido_antigo + b' ' +novo_apelido + b' :Nickname is already in use\r\n')
-                conexao.enviar(b':server 433 ' + apelido_antigo +
-                               b' ' + novo_apelido + b' :Nickname is already in use\r\n')
-                return
+    if validar_nome(apelido):
+        # se o apelido ja tiver nos nicks e nao tem o mesmo valor de conexao
+        if apelido.lower() in Nicks:
+            conexao.enviar(b':server 433 ' + apelido_antigo +
+                           b' ' + apelido + b' :Nickname is already in use\r\n')
+            return
+
+        Nicks[apelido.lower()] = conexao
 
         # troca de apelido
         if apelido_antigo != b'*':
-            print()
-            print(b':' + apelido_antigo +
-                  b' NICK ' + novo_apelido + b'\r\n')
+            del Nicks[apelido_antigo]
+            print("else")
+            print(b':', apelido_antigo, b' NICK ', apelido, b'\r\n')
             conexao.enviar(b':' + apelido_antigo +
-                           b' NICK ' + novo_apelido + b'\r\n')
+                           b' NICK ' + apelido + b'\r\n')
 
         # primeiro apelido
         else:
-            # print(b'NOVO:server 001 ' + novo_apelido + b' :Welcome\r\n')
-            conexao.enviar(b':server 001 ' + novo_apelido + b' :Welcome\r\n')
-            conexao.enviar(b':server 422 ' + novo_apelido +
+            conexao.enviar(b':server 001 ' + apelido + b' :Welcome\r\n')
+            conexao.enviar(b':server 422 ' + apelido +
                            b' :MOTD File is missing\r\n')
-        conexoes[conexao] = novo_apelido
-        print()
-        print(conexoes)
-        print()
+        return
+
     # apelido invalido
     else:
-        # print(b'INVALIDO:server 432 ' + apelido_antigo + b' ' +novo_apelido + b' :Erroneous nickname\r\n')
         conexao.enviar(b':server 432 ' + apelido_antigo +
-                       b' ' + novo_apelido + b' :Erroneous nickname\r\n')
-
-    return
+                       b' ' + apelido + b' :Erroneous nickname\r\n')
 
 # CASO 5
 
 
 def privatemsg(remetente, destinatario, mensagem):
     # retirando o comando
-    destinatario = destinatario.split(b' ', 1)[1]
-    for conexao_destinatario, apelido_destinatario in conexoes.items():
-        if destinatario.lower() == apelido_destinatario.lower():
-            # print(destinatario.lower())
-            # print()
-            # print("remetente = ", remetente, "destinatario = ",destinatario.lower(), "MENSAGEM = ", mensagem)
-            # print("mandou\n\n")
+    remetente = encontra_usuario(remetente)
 
-            conexao_destinatario.enviar(b':' + remetente + b' PRIVMSG ' +
-                                        apelido_destinatario + b' :' + mensagem + b'\r\n')
-    return
+    destinatario = destinatario.split(b' ', 1)[1]
+    if destinatario in Nicks:
+        print("remetente = ", remetente, "destinatario = ",
+              destinatario.lower(), "MENSAGEM = ", mensagem)
+
+        # primeira etapa
+        if Nicks[destinatario.lower()] and remetente != b'*':
+            print("mandou\n\n")
+            Nicks[destinatario.lower()].enviar(b':' + remetente + b' PRIVMSG ' +
+                                               destinatario + b' :' + mensagem + b'\r\n')
 
 
 # FIM CASO 5
+
 servidor = Servidor(6667)
 servidor.registrar_monitor_de_conexoes_aceitas(conexao_aceita)
 asyncio.get_event_loop().run_forever()
