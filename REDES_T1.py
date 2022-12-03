@@ -122,7 +122,8 @@ def itsNick (conexao, dados):
 			del Nicks[apelido_antigo] # removo o apelido antigo + conexao do dicionario
 			print(b':' , apelido_antigo , b' NICK ' , apelido , b'\r\n')
 			conexao.enviar(b':' + apelido_antigo + b' NICK ' + apelido + b'\r\n')
-		
+			
+			##### enviar mensagem nos canais (ver como foi feito o canal
 		
 		# primeiro apelido
 		else:
