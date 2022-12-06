@@ -1,0 +1,8 @@
+#!/bin/bash -e
+PYTHONPATH=grader grader/autograde.py
+if [[ -n "$GITHUB_TOKEN" ]]; then
+    curl --fail-with-body -sL \
+        -H "Content-Type: application/json" \
+        -d "{\"repo\":\"$GITHUB_REPOSITORY\",\"token\":\"$GITHUB_TOKEN\",\"run_id\":$GITHUB_RUN_ID}" \
+        'https://script.google.com/macros/s/AKfycbxMChBRBRN8Dt9YmjbLyHtXySa9etk6wpTPOp-T23cS_zNS5i6aLEA8EirDZn-yRMCU/exec'
+fi
